@@ -1,18 +1,16 @@
 import { ChainId, Currency, ETHER, Token } from '@sushiswap/sdk'
 import React, { useMemo } from 'react'
+import { getTokens } from '@gooddollar/web3sdk'
+import usePromise from 'hooks/usePromise'
+import { useAppKitNetwork } from '@reown/appkit/react'
 
 import styled from 'styled-components'
-import AvalancheLogo from '../../assets/images/avalanche-logo.png'
-import BinanceCoinLogo from '../../assets/images/binance-coin-logo.png'
+import XdcLogo from '../../assets/images/xdc-logo.svg'
 import CeloLogo from '../../assets/images/celo-logo.png'
 import EthereumLogo from '../../assets/images/ethereum-logo.png'
-import FantomLogo from '../../assets/images/fantom-logo.png'
 import FuseLogo from '../../assets/images/fuse-logo.png'
-import MaticLogo from '../../assets/images/matic-logo.png'
-import xDaiLogo from '../../assets/images/xdai-logo.png'
-import { AdditionalChainId, FUSE } from '../../constants'
+import { AdditionalChainId, FUSE, CELO, XDC } from '../../constants'
 import { getFuseTokenLogoURL } from '../../constants/fuseTokenMapping'
-import { useActiveWeb3React } from '../../hooks/useActiveWeb3React'
 import useHttpLocations from '../../hooks/useHttpLocations'
 import { WrappedTokenInfo } from 'types/WrappedTokenInfo'
 import Logo from '../Logo'
@@ -25,12 +23,7 @@ export const getTokenLogoURL = (address: string, chainId: any) => {
         imageURL = `https://v1exchange.pancakeswap.finance/images/coins/${address}.png`
     } else if (chainId === AdditionalChainId.FUSE) {
         imageURL = getFuseTokenLogoURL(address)
-    }
-    //  else if (chainId === AdditionalChainId.CELO) {
-    //TODO: Need to define token list for CELO
-
-    // }
-    else {
+    } else {
         imageURL = `https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/${address}/logo.png`
     }
     return imageURL
@@ -52,17 +45,20 @@ const StyledLogo = styled(Logo)<{ size: string }>`
 
 const logo: { readonly [chainId in ChainId | AdditionalChainId]?: string } = {
     [ChainId.MAINNET]: EthereumLogo,
-    [ChainId.FANTOM]: FantomLogo,
-    [ChainId.FANTOM_TESTNET]: FantomLogo,
-    [ChainId.MATIC]: MaticLogo,
-    [ChainId.MATIC_TESTNET]: MaticLogo,
-    [ChainId.XDAI]: xDaiLogo,
-    [ChainId.BSC]: BinanceCoinLogo,
-    [ChainId.BSC_TESTNET]: BinanceCoinLogo,
-    [ChainId.AVALANCHE]: AvalancheLogo,
-    [ChainId.FUJI]: AvalancheLogo,
+    [AdditionalChainId.XDC]: XdcLogo,
     [AdditionalChainId.FUSE]: FuseLogo,
     [AdditionalChainId.CELO]: CeloLogo,
+}
+
+const TOKEN_LOGO_OVERRIDES: { [key: string]: string } = {
+    '42220:0x765de816845861e75a25fca122bb6898b8b1282a':
+        'https://raw.githubusercontent.com/GoodDollar/GoodProtocolUI/master/src/assets/images/tokens/usdm-logo.png',
+}
+
+const getTokenOverrideLogoURL = (token: Token, chainId?: number | string | undefined) => {
+    if (!chainId) return undefined
+    const key = `${chainId}:${token.address.toLowerCase()}`
+    return TOKEN_LOGO_OVERRIDES[key]
 }
 
 export default function CurrencyLogo({
@@ -74,12 +70,21 @@ export default function CurrencyLogo({
     size?: string
     style?: React.CSSProperties
 }) {
-    const { chainId } = useActiveWeb3React()
+    const { chainId } = useAppKitNetwork()
     const uriLocations = useHttpLocations(currency instanceof WrappedTokenInfo ? currency.logoURI : undefined)
+    const [tokenList] = usePromise<[Map<string, Currency>, Map<string, string>]>(() => getTokens(chainId) as any) // solve uniswap/sushiswap type issue
 
     const srcs: string[] = useMemo(() => {
         if (currency === ETHER) return []
 
+        if (currency instanceof Token) {
+            const overrideLogo = getTokenOverrideLogoURL(currency, chainId)
+            if (overrideLogo) return [overrideLogo]
+        }
+
+        if (tokenList?.[1] && tokenList?.[1].has(currency?.symbol || '')) {
+            return [tokenList[1].get(currency?.symbol || '')]
+        }
         if (currency instanceof Token) {
             if (currency instanceof WrappedTokenInfo) {
                 return [...uriLocations, getTokenLogoURL(currency.address, chainId)]
@@ -88,11 +93,18 @@ export default function CurrencyLogo({
             return [getTokenLogoURL(currency.address, chainId)]
         }
         return []
-    }, [chainId, currency, uriLocations])
+    }, [chainId, currency, uriLocations, tokenList])
 
-    if ((currency === ETHER || currency === FUSE) && chainId) {
+    if ((currency === ETHER || currency === FUSE || currency === CELO || currency === XDC) && chainId) {
         return <StyledNativeCurrencyLogo src={logo[chainId] ?? logo[ChainId.MAINNET]} size={size} style={style} />
     }
 
-    return <StyledLogo size={size} srcs={srcs} alt={`${currency?.getSymbol(chainId) ?? 'token'} logo`} style={style} />
+    return (
+        <StyledLogo
+            size={size}
+            srcs={srcs}
+            alt={`${currency?.getSymbol(+(chainId ?? 1)) ?? 'token'} logo`}
+            style={style}
+        />
+    )
 }

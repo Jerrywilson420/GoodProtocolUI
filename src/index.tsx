@@ -4,7 +4,7 @@ import 'react-tabs/style/react-tabs.css'
 import './bootstrap'
 
 import React, { StrictMode } from 'react'
-import ReactDOM from 'react-dom'
+import { createRoot } from 'react-dom/client'
 import { Provider } from 'react-redux'
 import { HashRouter as Router } from 'react-router-dom'
 import { AnalyticsProvider } from '@gooddollar/web3sdk-v2'
@@ -24,10 +24,11 @@ import { createGlobalStyle } from 'styled-components'
 import { Web3ContextProvider } from './hooks/useWeb3'
 import { analyticsConfig, appInfo } from 'hooks/useSendAnalyticsData'
 import { HttpsProvider } from 'utils/HttpsProvider'
+import { AppKitProvider } from './reown/reownprovider'
 import { registerServiceWorker } from './serviceWorker'
-import { OnboardProviderWrapper } from 'components/BlockNativeOnboard'
 import { SimpleAppProvider } from 'state/simpleapp/simpleapp'
 import { nbTheme } from './theme/nbtheme'
+import { GoodDappFeatureProvider } from 'hooks/useFeaturesEnabled'
 
 if (window.ethereum) {
     window.ethereum.autoRefreshOnNetworkChange = false
@@ -68,6 +69,13 @@ const GlobalStyle = createGlobalStyle`
     width: 120px;
     height: auto;
   }
+
+  appkit-wallet-button[data-wallet-id="minipay"],
+  appkit-wallet-button:has([data-wallet-name*="MiniPay" i]),
+  button[data-wallet-id="minipay"],
+  button:has([data-wallet-name*="MiniPay" i]) {
+    display: none !important;
+  }
 `
 
 const enableHttpsRedirect = String(process.env.REACT_APP_ENABLE_HTTPS_REDIRECT) === '1'
@@ -83,20 +91,24 @@ const ProviderWrapper = ({ children }) => (
             }}
             autocapture={false}
         >
-            <OnboardProviderWrapper>
+            <AppKitProvider>
                 <GoodXProvider
                     nativeBaseProps={{ config: { suppressColorAccessibilityWarning: true }, theme: nbTheme }}
                 >
                     <Web3ContextProvider>
-                        <LanguageProvider>{children}</LanguageProvider>
+                        <GoodDappFeatureProvider>
+                            <LanguageProvider>{children}</LanguageProvider>
+                        </GoodDappFeatureProvider>
                     </Web3ContextProvider>
                 </GoodXProvider>
-            </OnboardProviderWrapper>
+            </AppKitProvider>
         </PostHogProvider>
     </Provider>
 )
 
-ReactDOM.render(
+const container = document.getElementById('root')
+const root = createRoot(container!)
+root.render(
     <StrictMode>
         <HttpsProvider enabled={enableHttpsRedirect}>
             <ProviderWrapper>
@@ -119,8 +131,7 @@ ReactDOM.render(
                 </AnalyticsProvider>
             </ProviderWrapper>
         </HttpsProvider>
-    </StrictMode>,
-    document.getElementById('root')
+    </StrictMode>
 )
 
 console.log('service worker options', {

@@ -3,14 +3,12 @@ import { t } from '@lingui/macro'
 import AsyncTokenIcon from 'components/gd/sushi/AsyncTokenIcon'
 import ListHeaderWithSort from 'components/gd/sushi/ListHeaderWithSort'
 import React, { Fragment, useState } from 'react'
-import { useFeatureFlag } from 'posthog-react-native'
-
-import { useActiveWeb3React } from 'hooks/useActiveWeb3React'
-import useSearchAndSort from 'hooks/useSearchAndSort'
 import { useLingui } from '@lingui/react'
+
+import { useAppKitNetwork } from '@reown/appkit/react'
+import useSearchAndSort from 'hooks/useSearchAndSort'
 import Modal from 'components/Modal'
 import { ActionOrSwitchButton } from 'components/gd/Button/ActionOrSwitchButton'
-import { ButtonOutlined } from 'components/gd/Button'
 import Table from 'components/gd/Table'
 import { Wrapper, CellSC } from './styled'
 import StakeDeposit from './StakeDeposit'
@@ -18,6 +16,8 @@ import usePromise from 'hooks/usePromise'
 import { QuestionHelper } from 'components'
 import { Savings } from './Savings'
 import { disableTestnetMain } from 'constants/index'
+import AppNotice from 'components/AppNotice'
+import { ButtonOutlined } from 'components/ButtonLegacy'
 
 import {
     LIQUIDITY_PROTOCOL,
@@ -33,6 +33,7 @@ import useSendAnalyticsData from 'hooks/useSendAnalyticsData'
 import { useWindowSize } from 'hooks/useWindowSize'
 import styled from 'styled-components'
 import { SupportedChains } from '@gooddollar/web3sdk-v2'
+import { useGoodDappFeatures } from 'hooks/useFeaturesEnabled'
 
 const StakeTable = ({
     list,
@@ -43,6 +44,7 @@ const StakeTable = ({
     network,
     setActiveStake,
     setActiveTableName,
+    disableStaking,
 }: {
     list: any
     error: Error | undefined
@@ -52,6 +54,7 @@ const StakeTable = ({
     network: DAO_NETWORK
     setActiveStake: any
     setActiveTableName: () => any
+    disableStaking: boolean
 }) => {
     const { i18n } = useLingui()
 
@@ -192,29 +195,31 @@ const StakeTable = ({
                                     {stake.rewards.GDAO.toFixed(2, { groupSeparator: ',' })}{' '}
                                     {stake.rewards.GDAO.currency.symbol}
                                 </div>
+                                {!disableStaking ? (
+                                    <div className="stake">
+                                        <ActionOrSwitchButton
+                                            size="sm"
+                                            borderRadius="6px"
+                                            noShadow={true}
+                                            requireChain={network.toUpperCase() as keyof typeof SupportedChains}
+                                            onClick={() => {
+                                                sendData({
+                                                    event: 'stake',
+                                                    action: 'stake_start',
+                                                    token: stake.tokens.A.symbol,
+                                                    type: stake.protocol,
+                                                    network,
+                                                })
+                                                setActiveStake(stake)
+                                                setActiveTableName()
+                                            }}
+                                            ButtonEl={ButtonOutlined}
+                                        >
+                                            {i18n._(t`Stake`)}
+                                        </ActionOrSwitchButton>
+                                    </div>
+                                ) : null}
                             </div>
-                        </div>
-                        <div className="stake">
-                            <ActionOrSwitchButton
-                                size="sm"
-                                borderRadius="6px"
-                                noShadow={true}
-                                requireChain={network.toUpperCase() as keyof typeof SupportedChains}
-                                onClick={() => {
-                                    sendData({
-                                        event: 'stake',
-                                        action: 'stake_start',
-                                        token: stake.tokens.A.symbol,
-                                        type: stake.protocol,
-                                        network,
-                                    })
-                                    setActiveStake(stake)
-                                    setActiveTableName()
-                                }}
-                                ButtonEl={ButtonOutlined}
-                            >
-                                {i18n._(t`Stake`)}
-                            </ActionOrSwitchButton>
                         </div>
                     </CellSC>
                 ))}
@@ -374,30 +379,32 @@ const StakeTable = ({
                                                 </div>
                                             </div>
                                         </td>
-                                        <td>
-                                            <ActionOrSwitchButton
-                                                size="sm"
-                                                width="78px"
-                                                borderRadius="6px"
-                                                noShadow={true}
-                                                requireChain={network.toUpperCase() as keyof typeof SupportedChains}
-                                                page="Stake"
-                                                onClick={() => {
-                                                    sendData({
-                                                        event: 'stake',
-                                                        action: 'stake_start',
-                                                        token: stake.tokens.A.symbol,
-                                                        type: stake.protocol,
-                                                        network: network,
-                                                    })
-                                                    setActiveStake(stake)
-                                                    setActiveTableName()
-                                                }}
-                                            >
-                                                {' '}
-                                                {i18n._(t`Stake`)}
-                                            </ActionOrSwitchButton>
-                                        </td>
+                                        {!disableStaking ? (
+                                            <td>
+                                                <ActionOrSwitchButton
+                                                    size="sm"
+                                                    width="78px"
+                                                    borderRadius="6px"
+                                                    noShadow={true}
+                                                    requireChain={network.toUpperCase() as keyof typeof SupportedChains}
+                                                    page="Stake"
+                                                    onClick={() => {
+                                                        sendData({
+                                                            event: 'stake',
+                                                            action: 'stake_start',
+                                                            token: stake.tokens.A.symbol,
+                                                            type: stake.protocol,
+                                                            network: network,
+                                                        })
+                                                        setActiveStake(stake)
+                                                        setActiveTableName()
+                                                    }}
+                                                >
+                                                    {' '}
+                                                    {i18n._(t`Stake`)}
+                                                </ActionOrSwitchButton>
+                                            </td>
+                                        ) : null}
                                     </tr>
                                 )}
                             </Fragment>
@@ -425,18 +432,20 @@ const StakesSC = styled.div`
 export default function Stakes(): JSX.Element | null {
     const { i18n } = useLingui()
     const { web3 } = useGdContextProvider()
-    const { chainId } = useActiveWeb3React()
+    const { chainId } = useAppKitNetwork()
     const governanceStaking = useGovernanceStaking(web3, 122)
-    const [mainnetWeb3] = useEnvWeb3(DAO_NETWORK.MAINNET, web3, chainId)
+    const [mainnetWeb3] = useEnvWeb3(DAO_NETWORK.MAINNET, web3, +(chainId ?? 1))
     const [stakes = [], loading, error, refetch] = usePromise(async () => {
-        const stakes = await (web3 && mainnetWeb3 && !disableTestnetMain.includes(chainId)
+        const stakes = await (web3 && mainnetWeb3 && !disableTestnetMain.includes(+(chainId ?? 1))
             ? getStakes(mainnetWeb3)
             : Promise.resolve([]))
 
         return stakes
     }, [web3, mainnetWeb3])
 
-    const mainnetStakesEnabled = useFeatureFlag('mainnet-stakes')
+    const { isFeatureActive } = useGoodDappFeatures()
+    const mainnetStakesEnabled = isFeatureActive('stakingEnabled', SupportedChains.MAINNET)
+    const governanceStakesEnabled = isFeatureActive('governanceEnabled', SupportedChains.FUSE)
 
     const sorted = useSearchAndSort(
         stakes,
@@ -460,26 +469,41 @@ export default function Stakes(): JSX.Element | null {
         <Layout>
             {' '}
             <StakesSC>
-                {mainnetStakesEnabled && (
+                {!mainnetStakesEnabled && (
                     <>
-                        <MarketHeader
-                            title={isMobile ? i18n._(t`Stake`) : i18n._(t`GoodStakes`)}
-                            lists={sorted}
-                            noSearch={stakes.length < 2}
-                        />
-                        {isMobile ? <h2 className="header">{i18n._(t`GoodStakes`)}</h2> : <div></div>}
-                        <StakeTable
-                            list={sorted}
-                            error={error}
-                            loading={loading}
-                            network={DAO_NETWORK.MAINNET}
-                            setActiveStake={setActiveStake}
-                            setActiveTableName={() => setActiveTableName('GoodStakes')}
+                        <AppNotice
+                            bg="#00b0ff4d"
+                            text="Staking on Ethereum Mainnet has been deprecated. Please withdraw your funds if you have an active stake on Ethereum Mainnet. You can do this in your portfolio."
+                            show={true}
                         />
                     </>
                 )}
+                <MarketHeader
+                    title={isMobile ? i18n._(t`Stake`) : i18n._(t`GoodStakes`)}
+                    lists={sorted}
+                    noSearch={stakes.length < 2}
+                />
+                {isMobile ? <h2 className="header">{i18n._(t`GoodStakes`)}</h2> : <div></div>}
+                <StakeTable
+                    list={sorted}
+                    error={error}
+                    loading={loading}
+                    network={DAO_NETWORK.MAINNET}
+                    setActiveStake={setActiveStake}
+                    setActiveTableName={() => setActiveTableName('GoodStakes')}
+                    disableStaking={!mainnetStakesEnabled}
+                />
 
                 <div className={isMobile ? 'mt-4' : 'mt-12'} />
+                {!governanceStakesEnabled && (
+                    <>
+                        <AppNotice
+                            bg="#00b0ff4d"
+                            text="Staking for governance has been disabled. Please verify in the community channels what actions are suggested to be taken. You can always withdraw your staked G$'s from your portfolio"
+                            show={true}
+                        />
+                    </>
+                )}
                 <MarketHeader
                     title={i18n._(t`GoodDAO Staking`)}
                     lists={sorted}
@@ -495,6 +519,7 @@ export default function Stakes(): JSX.Element | null {
                     rewardsSortKey={'rewards.GDAO'}
                     setActiveStake={setActiveStake}
                     setActiveTableName={() => setActiveTableName('GoodDAO Staking')}
+                    disableStaking={!governanceStaking}
                 />
 
                 <Modal isOpen={!!activeStake} showClose onDismiss={() => setActiveStake(undefined)}>

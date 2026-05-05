@@ -22480,10 +22480,10 @@ index 4f3b34eb3c85a3337f61ee7b21b029da1b9a4123..00000000000000000000000000000000
 -exports.validateTokens = validateTokens;
 diff --git a/dist/cjs/index-8fb8d6e3.cjs b/dist/cjs/index-8fb8d6e3.cjs
 new file mode 100644
-index 0000000000000000000000000000000000000000..3b3eb9ba41951f557a6268092a14dd1e0792cf22
+index 0000000000000000000000000000000000000000..3f072c568b37a0c5ec4e2e101edd32e37e47b451
 --- /dev/null
 +++ b/dist/cjs/index-8fb8d6e3.cjs
-@@ -0,0 +1,21596 @@
+@@ -0,0 +1,21605 @@
 +'use strict';
 +
 +var React = require('react');
@@ -32896,6 +32896,15 @@ index 0000000000000000000000000000000000000000..3b3eb9ba41951f557a6268092a14dd1e
 +  return trade.priceImpact.subtract(realizedLpFeePercent);
 +}
 +function getPriceImpactWarning(priceImpact) {
++  if (
++    !priceImpact ||
++    priceImpact.toSignificant() === 'NaN' ||
++    priceImpact.toSignificant() === 'Infinity' ||
++    !priceImpact.greaterThan
++  ) {
++    return 'error';
++  }
++
 +  if (priceImpact.greaterThan(ALLOWED_PRICE_IMPACT_HIGH)) return 'error';
 +  if (priceImpact.greaterThan(ALLOWED_PRICE_IMPACT_MEDIUM)) return 'warning';
 +  return;
@@ -66483,10 +66492,10 @@ index e7da428525171db63ee79a0b73e18aeb3bcad3b4..00000000000000000000000000000000
 -export { DialogAnimationType as D, EMPTY_TOKEN_LIST as E, Field as F, Logo as L, QuoteState as Q, RouterPreference as R, SwapRouterNativeAssets as S, TransactionType as T, UnknownError as U, WidgetError as W, SwapWidget as a, getNativeLogoURI as b, LogoUpdater as c, useLogos as d, SwapWidgetSkeleton as e, SupportedChainId as f, getAssetsRepoURI as g, DEFAULT_LOCALE as h, isExactInput as i, SUPPORTED_LOCALES as j, UserRejectedRequestError as k, UNISWAP_TOKEN_LIST as l, validateTokens as m, nativeOnChain as n, darkTheme as o, defaultTheme as p, lightTheme as q, invertTradeType as r, toTradeType as t, useLogo as u, validateTokenList as v };
 diff --git a/dist/index-aa746f89.js b/dist/index-aa746f89.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..47dc33529f5803217bbd34b27ddb350ddda7580b
+index 0000000000000000000000000000000000000000..e40c2fe4d87bcaf5f683449f1419458768abd233
 --- /dev/null
 +++ b/dist/index-aa746f89.js
-@@ -0,0 +1,21522 @@
+@@ -0,0 +1,21531 @@
 +import React, { Children, useMemo, createContext, useContext, useRef, memo, forwardRef, useState, useCallback, useEffect, Component, useImperativeHandle, StrictMode } from 'react';
 +import { Buffer } from 'buffer';
 +import _slicedToArray from '@babel/runtime/helpers/slicedToArray';
@@ -76848,6 +76857,15 @@ index 0000000000000000000000000000000000000000..47dc33529f5803217bbd34b27ddb350d
 +  return trade.priceImpact.subtract(realizedLpFeePercent);
 +}
 +function getPriceImpactWarning(priceImpact) {
++  if (
++    !priceImpact ||
++    priceImpact.toSignificant() === 'NaN' ||
++    priceImpact.toSignificant() === 'Infinity' ||
++    !priceImpact.greaterThan
++  ) {
++    return 'error';
++  }
++
 +  if (priceImpact.greaterThan(ALLOWED_PRICE_IMPACT_HIGH)) return 'error';
 +  if (priceImpact.greaterThan(ALLOWED_PRICE_IMPACT_MEDIUM)) return 'warning';
 +  return;

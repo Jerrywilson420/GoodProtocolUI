@@ -3,22 +3,20 @@ import { Link, Text, VStack } from 'native-base'
 import { i18n } from '@lingui/core'
 import { t } from '@lingui/macro'
 import { SlideDownTab, useScreenSize } from '@gooddollar/good-design'
+import MarkDown from '@ronradtke/react-native-markdown-display'
+import { useAppKitNetwork } from '@reown/appkit/react'
+import { AdditionalChainId } from 'constants/index'
 
-import { faqBuyCopy, faqBridgeCopy, faqSwapCopy, faqGoodIDCopy, faqClaimCopy } from './copies'
+import { faqs, faqReserveCeloCopy, faqReserveXdcCopy } from './copies'
 
-const faqs = {
-    swap: faqSwapCopy,
-    buy: faqBuyCopy,
-    bridge: faqBridgeCopy,
-    goodid: faqGoodIDCopy,
-    claim: faqClaimCopy,
-}
+export type FaqType = 'swap' | 'buy' | 'bridge' | 'goodid' | 'claim' | 'reserve'
 
 const FaqItem = ({ id, question, answer, links, AltLink }) => {
     const { isDesktopView } = useScreenSize()
 
     return (
         <SlideDownTab
+            key={question}
             tabTitle={i18n._(t`${question}`)}
             mb={2}
             viewInteraction={{
@@ -51,7 +49,7 @@ const FaqItem = ({ id, question, answer, links, AltLink }) => {
                 color="goodGrey.400"
                 fontSize="sm"
             >
-                {i18n._(t`${answer}`)}
+                <MarkDown>{i18n._(t`${answer}`)}</MarkDown>
             </Text>
             {links ? (
                 <VStack w="100%">
@@ -78,8 +76,14 @@ const FaqItem = ({ id, question, answer, links, AltLink }) => {
     )
 }
 
-export const Faq = ({ type }: { type: 'swap' | 'buy' | 'bridge' | 'goodid' | 'claim' }) => {
-    const copies = faqs[type]
+export const Faq = ({ type }: { type: FaqType }) => {
+    const { chainId } = useAppKitNetwork()
+    const copies =
+        type === 'reserve'
+            ? Number(chainId) === AdditionalChainId.XDC
+                ? faqReserveXdcCopy
+                : faqReserveCeloCopy
+            : faqs[type]
 
     return (
         <SlideDownTab

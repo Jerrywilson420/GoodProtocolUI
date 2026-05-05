@@ -1,6 +1,6 @@
 import React, { memo, useCallback, useState } from 'react'
 import { DAO_NETWORK, getMyList, LIQUIDITY_PROTOCOL, MyStake, useEnvWeb3 } from '@gooddollar/web3sdk'
-import { SupportedChains } from '@gooddollar/web3sdk-v2'
+import { SupportedChains, useG$Price } from '@gooddollar/web3sdk-v2'
 import { t } from '@lingui/macro'
 import { useLingui } from '@lingui/react'
 import { Currency, CurrencyAmount } from '@uniswap/sdk-core'
@@ -19,13 +19,13 @@ import PortfolioTableRow from 'components/PortfolioTableRow'
 import Withdraw from 'components/Withdraw'
 import WithdrawRewards from 'components/WithdrawRewards'
 import { disableTestnetMain } from 'constants/index'
-import useActiveWeb3React from 'hooks/useActiveWeb3React'
 import useCallbackOnFocus from 'hooks/useCallbackOnFocus'
 import usePromise from 'hooks/usePromise'
 import { useWindowSize } from 'hooks/useWindowSize'
 import styled from 'styled-components'
 import { CellSC, PortfolioAnalyticSC, PortfolioSC, PortfolioTitleSC, PortfolioValueSC } from './styled'
 import { SavingsCard } from 'components/Savings/SavingsCard'
+import { useAppKitAccount, useAppKitNetwork } from '@reown/appkit/react'
 
 const MobileTableSC = styled.div``
 
@@ -45,7 +45,7 @@ const MobileCell = ({
     const { i18n } = useLingui()
     const [isWithdrawOpen, setWithdrawOpen] = useState(false)
     const [isClaimRewardsOpen, setClaimRewardsOpen] = useState(false)
-    const { chainId } = useActiveWeb3React()
+    const { chainId } = useAppKitNetwork()
 
     const requireNetwork = stake.protocol === LIQUIDITY_PROTOCOL.GOODDAO ? DAO_NETWORK.FUSE : DAO_NETWORK.MAINNET
     const claimableStake =
@@ -81,7 +81,7 @@ const MobileCell = ({
                         network={stake.protocol}
                     />
                     {stake.tokens.A.symbol}
-                    {stake.tokens.A.address !== stake.tokens.B.address ?? `/ ${stake.tokens.B.symbol}`}
+                    {stake.tokens.A.address !== stake.tokens.B.address ? `/ ${stake.tokens.B.symbol}` : ''}
                 </div>
                 <div className="part protocol">
                     <Title type="category" className="flex items-center key">
@@ -194,8 +194,9 @@ const MobileTable = ({ stakes, cells, onUpdate }: { stakes?: MyStake[]; cells: a
 
 const Portfolio = memo(() => {
     const { i18n } = useLingui()
-    const { account, chainId } = useActiveWeb3React()
-
+    const { address } = useAppKitAccount()
+    const { chainId } = useAppKitNetwork()
+    const gdPrice = useG$Price()
     const [mainnetWeb3, mainnetChainId] = useEnvWeb3(DAO_NETWORK.MAINNET)
     const [fuseWeb3, fuseChainId] = useEnvWeb3(DAO_NETWORK.FUSE)
     const { width } = useWindowSize()
@@ -239,8 +240,8 @@ const Portfolio = memo(() => {
 
     const [data, , , update] = usePromise(async () => {
         const list =
-            account && mainnetWeb3 && fuseWeb3 && !disableTestnetMain.includes(chainId)
-                ? await getMyList(mainnetWeb3, fuseWeb3, account)
+            address && mainnetWeb3 && fuseWeb3 && !disableTestnetMain.includes(+(chainId ?? 1))
+                ? await getMyList(mainnetWeb3, fuseWeb3, address, gdPrice)
                 : []
         return {
             list,
@@ -285,7 +286,7 @@ const Portfolio = memo(() => {
                       }
             ),
         }
-    }, [account, mainnetChainId, fuseChainId])
+    }, [address, mainnetChainId, fuseChainId, gdPrice])
 
     const showNotice = data?.list.find((stake) => stake.isDeprecated)
 
@@ -298,7 +299,7 @@ const Portfolio = memo(() => {
                     <div className="flex flex-col segment">
                         <Title type="category">{i18n._(t`My Stake`)}</Title>
                         <PortfolioValueSC>
-                            {/* ~{data?.aggregated?.myStake.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$ */}
+                            ~{data?.aggregated?.myStake.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$
                         </PortfolioValueSC>
                     </div>
                     <div className="flex flex-col segment">
@@ -308,7 +309,7 @@ const Portfolio = memo(() => {
                             {data?.aggregated?.rewardsG$.currency.symbol}
                             <br />
                             <small>
-                                {/* ~{data?.aggregated?.rewardsG$$.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$ */}
+                                ~{data?.aggregated?.rewardsG$$.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$
                             </small>
                         </PortfolioValueSC>
                     </div>
@@ -350,7 +351,7 @@ const Portfolio = memo(() => {
                             {data?.aggregated?.rewardsG$Unclaimed.currency.symbol}
                             <br />
                             <small>
-                                {/* ~{data?.aggregated?.rewardsG$Unclaimed$.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$ */}
+                                ~{data?.aggregated?.rewardsG$Unclaimed$.toFixed(2, { groupSeparator: ',' }) ?? '0.00'}$
                             </small>
                         </PortfolioValueSC>
                     </div>
@@ -439,10 +440,10 @@ const Portfolio = memo(() => {
                     </Table>
                 </Card>
             )}
-            {process.env.REACT_APP_CELO_PHASE_3 && account && (
+            {process.env.REACT_APP_CELO_PHASE_3 && address && (
                 <>
                     <PortfolioTitleSC className="mt-4 mb-3 md:pl-2">{i18n._(`Savings`)}</PortfolioTitleSC>
-                    <SavingsCard account={account} />
+                    <SavingsCard account={address} />
                 </>
             )}
         </>
@@ -452,7 +453,7 @@ const Portfolio = memo(() => {
         <Layout classes="md:mt-24 xl:mt-0 sh:mt-30">
             <PortfolioSC>
                 <Title className="mb-6 md:pl-4">Portfolio</Title>
-                {account ? (
+                {address ? (
                     portfolio
                 ) : (
                     <Placeholder className="mx-4">{i18n._(t`Connect a wallet to see your portfolio`)}</Placeholder>

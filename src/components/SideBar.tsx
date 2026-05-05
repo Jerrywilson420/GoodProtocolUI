@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react'
-import { Text, Box, View, useBreakpointValue, HStack, useColorModeValue, ScrollView } from 'native-base'
+import { Box, View, useBreakpointValue, HStack, useColorModeValue, ScrollView } from 'native-base'
 import { getDevice, useClaim } from '@gooddollar/web3sdk-v2'
 import { t } from '@lingui/macro'
 import { useLingui } from '@lingui/react'
@@ -9,11 +9,13 @@ import { useFeatureFlagWithPayload } from 'posthog-react-native'
 
 import { useApplicationTheme } from '../state/application/hooks'
 import LanguageSwitch from './LanguageSwitch'
-import { NavLink } from './Link'
 import { ExternalLink } from 'theme'
 import { SubMenuItems } from './StyledMenu/SubMenu'
 import { socials } from 'constants/socials'
 import classNames from 'classnames'
+import { isMiniPay } from 'utils/minipay'
+import { getNetworkEnv } from 'utils/env'
+import { useGoodDappFeatures } from 'hooks/useFeaturesEnabled'
 
 const SocialsLink: React.FC<{ network: string; logo: string; url: string; onPress: (e: any, url: string) => void }> = ({
     network,
@@ -50,6 +52,7 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
     const isBuyGd = pathname.startsWith('/buy')
 
     const bgContainer = useColorModeValue('goodWhite.100', '#151A30')
+    const networkEnv = getNetworkEnv()
 
     const { browser, os } = getDevice()
     const { isTabletView } = useScreenSize()
@@ -65,6 +68,9 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
     const secondRowItems = socialItems.slice(4)
 
     const [, payload] = useFeatureFlagWithPayload('advanced-minipay-enabled')
+    const { isFeatureActive } = useGoodDappFeatures()
+    const lzBridgeEnabled = isFeatureActive('lzBridgeEnabled')
+    const showGoodBridgeOnQA = window.location.hostname === 'qa.gooddapp.org'
 
     const containerStyles = useBreakpointValue({
         base: {
@@ -99,8 +105,7 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
         'w-full': !isTabletView,
     })
 
-    const { ethereum } = window
-    const isMinipay = ethereum?.isMiniPay
+    const isMinipay = isMiniPay()
     const { bridgeEnabled = false, swapEnabled = false } = payload || {}
 
     const externalLinks = useMemo(
@@ -120,14 +125,7 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
                         url: 'https://v2.app.squidrouter.com/',
                         dataAttr: 'buygd_squid',
                         withIcon: true,
-                        show: true,
-                    },
-                    {
-                        label: i18n._(t`Save G$`),
-                        url: 'https://app.halofi.me/#/challenges?tokensymbol=gd',
-                        dataAttr: 'save',
-                        withIcon: true,
-                        show: true,
+                        show: !isMinipay,
                     },
                     {
                         label: i18n._(t`Dapps`),
@@ -139,38 +137,12 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
                 ],
             },
             {
-                subMenuTitle: 'Bridges',
-                items: [
-                    {
-                        label: i18n._(t`Squid Router`),
-                        url: 'https://v2.app.squidrouter.com/',
-                        dataAttr: 'squid',
-                        withIcon: true,
-                        show: true,
-                    },
-                    {
-                        label: i18n._(t`Fuse Bridge`),
-                        url: 'https://app.voltage.finance/index.html#/bridge',
-                        dataAttr: 'bridge',
-                        withIcon: true,
-                        show: true,
-                    },
-                ],
-            },
-            {
                 subMenuTitle: 'More',
                 items: [
                     {
                         label: i18n._(t`GoodWallet`),
                         url: 'https://wallet.gooddollar.org',
                         dataAttr: 'wallet',
-                        withIcon: true,
-                        show: true,
-                    },
-                    {
-                        label: i18n._(t`Dashboard`),
-                        url: 'https://dashboard.gooddollar.org/',
-                        dataAttr: 'dashboard',
                         withIcon: true,
                         show: true,
                     },
@@ -197,49 +169,116 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
     const internalLinks = useMemo(
         () => [
             {
-                route: '/buy',
-                text: 'Buy G$',
-                show: isBuyGd, // todo: add post-hog feature flags for pages
+                items: [
+                    {
+                        route: '/buy',
+                        text: 'Buy G$',
+                        show: isBuyGd, // todo: add post-hog feature flags for pages
+                    },
+                    {
+                        route: '/claim',
+                        text: 'Claim',
+                        show: true,
+                    },
+                    {
+                        route: '/news',
+                        text: 'News',
+                        show: true,
+                    },
+                ],
             },
             {
-                route: '/claim',
-                text: 'Claim',
-                show: true,
+                subMenuTitle: 'Swap',
+                items: [
+                    {
+                        route: '/swap/goodReserve',
+                        text: 'GoodDollar Reserve',
+                        show: true,
+                    },
+                    {
+                        text: i18n._(t`Uniswap (widget)`),
+                        route: '/swap/celoUniswap',
+                        dataAttr: 'swapcelo',
+                        show: !isMinipay || swapEnabled,
+                    },
+                    {
+                        label: i18n._(t`Voltage Finance (Fuse)`),
+                        url: 'https://app.voltage.finance/',
+                        dataAttr: 'voltage',
+                        withIcon: true,
+                        show: !isMinipay,
+                    },
+                    {
+                        label: i18n._(t`Uniswap (Celo)`),
+                        url: 'https://app.uniswap.org',
+                        dataAttr: 'uniswap',
+                        withIcon: true,
+                        show: true,
+                    },
+                    {
+                        label: i18n._(t`Xswap (XDC)`),
+                        url: 'https://app.xspswap.finance/',
+                        dataAttr: 'xswap',
+                        withIcon: true,
+                        show: true,
+                    },
+                ],
             },
             {
-                route: '/news',
-                text: 'News',
-                show: true,
+                subMenuTitle: 'Bridges',
+                items: [
+                    {
+                        route: '/microbridge',
+                        text: 'Fuse/Celo Bridge',
+                        show: !isMinipay || bridgeEnabled,
+                    },
+                    {
+                        route: '/goodbridge',
+                        text: 'GoodBridge',
+                        show:
+                            !networkEnv.includes('production') || showGoodBridgeOnQA
+                                ? true
+                                : !isMinipay && lzBridgeEnabled,
+                    },
+                    {
+                        label: i18n._(t`GoodDollar Main Bridge`),
+                        url: 'https://docs.gooddollar.org/user-guides/bridge-gooddollars',
+                        dataAttr: 'mainbridge',
+                        withIcon: true,
+                        show: !isMinipay || bridgeEnabled,
+                    },
+                    {
+                        label: i18n._(t`Squid Router`),
+                        url: 'https://v2.app.squidrouter.com/',
+                        dataAttr: 'squid',
+                        withIcon: true,
+                        show: !isMinipay || bridgeEnabled,
+                    },
+                ],
             },
             {
-                route: '/swap',
-                text: 'Swap',
-                show: process.env.REACT_APP_CELO_PHASE_3 || (isMinipay && swapEnabled) || !isMinipay,
-            },
-            {
-                route: '/stakes',
-                text: 'Stake',
-                show: !isMinipay,
-            },
-            {
-                route: '/portfolio',
-                text: 'Portfolio',
-                show: !isMinipay,
-            },
-            {
-                route: '/goodid',
-                text: 'GoodID',
-                show: isWhitelisted,
-            },
-            {
-                route: '/microbridge',
-                text: 'Micro Bridge',
-                show: !isMinipay || (isMinipay && bridgeEnabled),
-            },
-            {
-                route: '/dashboard',
-                text: 'Dashboard',
-                show: true,
+                items: [
+                    {
+                        route: '/stakes',
+                        text: 'Stake',
+                        show: !isMinipay,
+                    },
+                    {
+                        route: '/portfolio',
+                        text: 'Portfolio',
+                        show: !isMinipay,
+                    },
+                    {
+                        route: '/goodid',
+                        text: 'GoodID',
+                        show: isWhitelisted,
+                    },
+                    {
+                        route: '/dashboard',
+                        text: 'Dashboard',
+                        show: true,
+                    },
+                ],
             },
         ],
         [isWhitelisted, pathname]
@@ -259,57 +298,53 @@ export default function SideBar({ mobile, closeSidebar }: { mobile?: boolean; cl
                 justifyContent="center"
                 flexDirection="column"
                 px="6"
+                paddingRight="2"
                 py="4"
                 bg={bgContainer}
             >
                 <ScrollView scrollEnabled={true} display="flex" flexDir="column">
-                    {internalLinks
-                        .filter((internal) => internal.show)
-                        .map(({ route, text }) => (
-                            <NavLink key={route} to={route} onPress={onTabClick}>
-                                <Text>{text}</Text>
-                            </NavLink>
-                        ))}
-
-                    {!isMinipay &&
-                        externalLinks.map((subMenu) =>
-                            subMenu.subMenuTitle === 'Regular' ? (
-                                <SubMenuItems
-                                    key={subMenu.subMenuTitle}
-                                    items={subMenu.items}
-                                    onPress={handleExternal}
-                                />
-                            ) : (
-                                <SlideDownTab
-                                    key={subMenu.subMenuTitle}
-                                    tabTitle={subMenu.subMenuTitle}
-                                    viewInteraction={{
-                                        hover: { backgroundColor: 'main:alpha.10', borderRadius: 6 },
-                                    }}
-                                    styles={{
-                                        button: {
-                                            borderRadius: 12,
-                                        },
-                                        innerButton: {
-                                            height: '10',
-                                        },
-                                        content: { alignItems: 'flex-start', paddingLeft: 4 },
-                                        titleFont: {
-                                            fontFamily: 'subheading',
-                                            fontWeight: '400',
-                                            paddingLeft: 2,
-                                        },
-                                    }}
-                                    arrowSmall
-                                >
+                    {internalLinks.concat(externalLinks).map((subMenu, i) =>
+                        !subMenu.subMenuTitle || subMenu.subMenuTitle === 'Regular' ? (
+                            <SubMenuItems
+                                key={i}
+                                items={subMenu.items}
+                                handleExternal={handleExternal}
+                                handleInternal={onTabClick}
+                            />
+                        ) : (
+                            <SlideDownTab
+                                key={i}
+                                tabTitle={subMenu.subMenuTitle}
+                                viewInteraction={{
+                                    hover: { backgroundColor: 'main:alpha.10', borderRadius: 6 },
+                                }}
+                                styles={{
+                                    button: {
+                                        borderRadius: 12,
+                                    },
+                                    innerButton: {
+                                        height: '10',
+                                    },
+                                    content: { alignItems: 'flex-start' },
+                                    titleFont: {
+                                        fontFamily: 'subheading',
+                                        fontWeight: '400',
+                                        paddingLeft: 2,
+                                    },
+                                }}
+                                arrowSmall
+                            >
+                                <View pl={2}>
                                     <SubMenuItems
                                         items={subMenu.items}
-                                        styles={{ alignItems: 'flex-start', paddingLeft: 4 }}
-                                        onPress={handleExternal}
+                                        // styles={{ alignItems: 'flex-start' }}
+                                        handleExternal={handleExternal}
+                                        handleInternal={onTabClick}
                                     />
-                                </SlideDownTab>
-                            )
-                        )}
+                                </View>
+                            </SlideDownTab>
+                        )
+                    )}
                 </ScrollView>
                 <div className={footerStyles}>
                     <div className="flex flex-row w-full h-6 gap-10">

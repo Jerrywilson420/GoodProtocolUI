@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react'
-import { useAnalytics } from '@gooddollar/web3sdk-v2'
+import React, { useEffect, useState, useRef } from 'react'
 import { t } from '@lingui/macro'
 import { useLingui } from '@lingui/react'
 import styled from 'styled-components'
-
-import Loader from '../Loader'
-import { useOnboardConnect } from 'hooks/useActiveOnboard'
-import useActiveWeb3React from 'hooks/useActiveWeb3React'
+import { useAppKitState } from '@reown/appkit/react'
+import { useAccount, useConnect } from 'wagmi'
+import { waitForMiniPayProvider, isMiniPay } from 'utils/minipay'
+import { WALLET_RECONNECT_FLAG_KEY } from 'constants/reown'
 
 const MessageWrapper = styled.div`
     display: flex;
@@ -19,17 +18,21 @@ const Message = styled.h2`
     color: ${({ theme }) => theme.secondary1};
 `
 
+const LOADER_DELAY_MS = 600
+
 export default function Web3ReactManager({ children }: { children: JSX.Element }) {
     const { i18n } = useLingui()
-    const { tried } = useOnboardConnect()
-    const [showLoader, setShowLoader] = useState(false) // handle delayed loader state
-    const { active: networkActive, error: networkError, account } = useActiveWeb3React()
-    const { identify } = useAnalytics()
+    const [, setShowLoader] = useState(false)
+    const { initialized } = useAppKitState()
+    const { address } = useAccount()
+    const networkError = false
+    const { connect, connectors } = useConnect()
+    const hasConnected = useRef(false)
 
     useEffect(() => {
         const timeout = setTimeout(() => {
             setShowLoader(true)
-        }, 600)
+        }, LOADER_DELAY_MS)
 
         return () => {
             clearTimeout(timeout)
@@ -37,23 +40,44 @@ export default function Web3ReactManager({ children }: { children: JSX.Element }
     }, [])
 
     useEffect(() => {
-        // re-identify analytics when connected wallet changes
-        if (networkActive && account) {
-            identify(account)
+        if (hasConnected.current || address) {
+            return
         }
-    }, [networkActive, account])
 
-    // on page load, do nothing until we've tried to connect a previously connected wallet
-    if (!tried) {
-        return showLoader ? (
-            <MessageWrapper>
-                <Loader />
-            </MessageWrapper>
-        ) : null
-    }
+        const attemptConnect = async () => {
+            if (!isMiniPay()) {
+                return
+            }
 
-    // if the account context isn't active, and there's an error on the network context, it's an irrecoverable error
-    if (!networkActive && networkError) {
+            const provider = await waitForMiniPayProvider(2000)
+            if (!provider) {
+                return
+            }
+
+            try {
+                hasConnected.current = true
+                const miniPayConnectorInstance = connectors.find((c) => c.id === 'minipay')
+                if (miniPayConnectorInstance) {
+                    connect({ connector: miniPayConnectorInstance })
+                }
+            } catch (error) {
+                console.error('MiniPay auto-connect failed:', error)
+                hasConnected.current = false
+            }
+        }
+
+        void attemptConnect()
+    }, [address, connect, connectors])
+
+    useEffect(() => {
+        if (initialized && address) {
+            if (typeof window !== 'undefined' && typeof window.localStorage !== 'undefined') {
+                window.localStorage.setItem(WALLET_RECONNECT_FLAG_KEY, '1')
+            }
+        }
+    }, [initialized, address])
+
+    if (!initialized && networkError) {
         return (
             <MessageWrapper>
                 <Message>
@@ -65,5 +89,5 @@ export default function Web3ReactManager({ children }: { children: JSX.Element }
         )
     }
 
-    return children
+    return <>{children}</>
 }

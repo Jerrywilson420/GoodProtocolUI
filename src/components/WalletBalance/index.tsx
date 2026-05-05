@@ -5,16 +5,17 @@ import { t } from '@lingui/macro'
 import { Fragment } from 'react'
 import { noop } from 'lodash'
 import { LoadingPlaceHolder } from 'theme/components'
-import { AsyncStorage, G$Balances, SupportedV2Networks, useG$Balance, useG$Tokens } from '@gooddollar/web3sdk-v2'
+import { AsyncStorage, G$Balances, useG$Balance, useG$Tokens } from '@gooddollar/web3sdk-v2'
 import { Box, Text, useColorModeValue } from 'native-base'
 import { BasePressable, CentreBox } from '@gooddollar/good-design'
 import { isMobile } from 'react-device-detect'
+import { useAppKitNetwork } from '@reown/appkit/react'
 
 import usePromise from 'hooks/usePromise'
 import { getScreenWidth } from 'utils/screenSizes'
-import { useActiveWeb3React } from 'hooks/useActiveWeb3React'
 import { AdditionalChainId } from '../../constants'
 import useMetaMask from 'hooks/useMetaMask'
+import { isMiniPay } from 'utils/minipay'
 
 //assets
 import { ReactComponent as WalletBalanceIcon } from '../../assets/images/walletBalanceIcon.svg'
@@ -30,16 +31,16 @@ const chains = Object.values(AdditionalChainId)
 
 export const WalletBalanceWrapper = ({ toggleView }: { toggleView: typeof noop }) => {
     const { ethereum } = window
-    const { chainId } = useActiveWeb3React()
+    const { chainId } = useAppKitNetwork()
     const metaMaskInfo = useMetaMask()
-    const balances = useG$Balance(5)
-    const [G$, GOOD, GDX] = useG$Tokens()
+    const balances = useG$Balance(5, Number(chainId))
+    const [G$, GOOD] = useG$Tokens()
     const bgWalletBalance = useColorModeValue('goodWhite.100', '#1a1f38')
     const textColor = useColorModeValue('goodGrey.700', 'goodGrey.300')
     const [imported, setImported] = useState<boolean>(false)
     const { i18n } = useLingui()
     const scrWidth = getScreenWidth()
-    const isMinipay = ethereum?.isMiniPay
+    const isMinipay = isMiniPay()
 
     const importToMetamask = async () => {
         const allTokens: any[] = [
@@ -63,16 +64,16 @@ export const WalletBalanceWrapper = ({ toggleView }: { toggleView: typeof noop }
             },
         ]
 
-        if (!SupportedV2Networks[chainId] && balances.GDX)
-            allTokens.push({
-                type: 'ERC20',
-                options: {
-                    address: GDX.address,
-                    symbol: GDX.ticker,
-                    decimals: GDX.decimals,
-                    image: 'https://raw.githubusercontent.com/GoodDollar/GoodProtocolUI/master/src/assets/images/tokens/gdx-logo.png',
-                },
-            })
+        // if (!SupportedV2Networks[chainId] && balances.GDX)
+        //     allTokens.push({
+        //         type: 'ERC20',
+        //         options: {
+        //             address: GDX.address,
+        //             symbol: GDX.ticker,
+        //             decimals: GDX.decimals,
+        //             image: 'https://raw.githubusercontent.com/GoodDollar/GoodProtocolUI/master/src/assets/images/tokens/gdx-logo.png',
+        //         },
+        //     })
 
         void Promise.all(
             allTokens.map(async (token) => {
@@ -106,11 +107,11 @@ export const WalletBalanceWrapper = ({ toggleView }: { toggleView: typeof noop }
         <Box
             px={4}
             paddingBottom={2}
-            paddingTop={4}
+            paddingTop={30}
             w={isMobile ? scrWidth : 375}
             position="absolute"
             right={0}
-            top={isMinipay ? 25 : 30}
+            top={isMinipay ? 25 : 4}
             bg={bgWalletBalance}
             borderRadius="12px"
             borderBottomLeftRadius={12}
@@ -145,7 +146,7 @@ export const WalletBalanceWrapper = ({ toggleView }: { toggleView: typeof noop }
                 borderBottomLeftRadius={12}
                 borderBottomRightRadius={12}
             >
-                <WalletBalance balances={balances} chainId={chainId} />
+                <WalletBalance balances={balances} chainId={+(chainId ?? 42220)} />
                 {/* todo: retest this flow */}
                 {!loading && !imported && !isMinipay && (
                     <Box flexDir="row" mt={4}>
